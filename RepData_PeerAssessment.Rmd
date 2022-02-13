@@ -1,0 +1,191 @@
+---
+title: "RepData_PeerAssessment1"
+author: "jlg"
+date: "13/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+## Downloading File
+
+```{r download file}
+list.files()
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip?accessType=DOWNLOAD"
+destfile <- "./activity.zip"
+if(!file.exists(destfile)) {
+  download.file(fileUrl,
+                destfile,
+                mode="wb") # "wb" means "write binary," and is used for binary files
+  
+}
+list.files()
+if(!file.exists("./activity.csv")) {
+  unzip(zipfile = destfile) # unpack the files 
+}
+```
+## Reading File
+
+```{r reading file}
+
+list.files()
+act <- data.frame()
+act <- read.csv("./activity.csv", header=TRUE, sep=",")
+head(act)
+str(act)
+summary(act)
+```
+
+# 1 - What is mean total number of steps taken per day?
+
+```{r ploting mean total number of steps com}
+#  For this part of the assignment, you can ignore the missing values in the dataset.
+# 1. Code for reading in the dataset and/or processing the data
+# 2. Histogram of the total number of steps taken each day
+# 3. Mean and median number of steps taken each day
+```
+```{r ploting mean total number of steps, echo=TRUE}
+library(dplyr)
+val_act <- act[!is.na(act$steps),]
+
+pack_step <- val_act %>%
+  group_by(date) %>%
+  summarize(tstep = sum(steps))
+
+hist(pack_step$tstep, col="green", breaks = nrow(pack_step), main = "Total steps by date", xlab="Number of steps")
+rug(pack_step$tstep)
+abline(v=median(pack_step$tstep), col="blue", lty=2, lwd=4)
+abline(v=mean(pack_step$tstep), col="red", lty=2, lwd=2)
+
+```
+```{r calculate mean & median total number of steps }
+# median number of steps taken each day
+median(pack_step$tstep)
+#Mean number of steps taken each day
+mean(pack_step$tstep)
+# AS SHOWN ON THE PLOT  MEAN & MEDIAN ARE VERY CLOSE
+
+```
+
+# 2 - What is the average daily activity pattern?
+
+```{r time_serie com}
+# 1 Make a time series plot (i.e.type = "l") of the 5-minute interval(x-axis) and the average number of steps taken, averaged across all days (y-axis)
+# 2 Which 5-minute interval, on average across all the days in  the dataset, contains the maximum number of steps?
+```
+
+```{r time_serie, echo=TRUE}
+# calculate mean foreach group of interval 0, 5, 10, ... 
+pack_mean <- val_act %>%
+  group_by(interval) %>%
+  summarize(mstep = mean(steps))
+
+# plot the time series
+library(ggplot2)
+p1 = ggplot(pack_mean, aes(x=interval, y=mstep)) +
+  geom_line() +
+  scale_y_continuous(
+    name = "Mean number of steps by interval")
+p1 + ggtitle("Mean steps by interval") + xlab("Interval number") 
+
+```
+```{r calculate interval with the max number of steps }
+# Which interval with the maximum number of steps taken each day
+pack_mean$interval[pack_mean$mstep == max(pack_mean$mstep)]
+
+```
+
+
+# 3 - Imputing missing values
+
+```{r imputing data com}
+# 1. Calculate and report the total number of missing values in the  dataset (i.e. the total number of rows with NAs)
+# 2. Devise a strategy for filling in all of the missing values in the dataset.  For example, you could use the mean/median for that day, or the mean for that interval
+# 3. Create a new dataset that is equal to the original dataset but  with the missing data filled in.
+# 4. Make a histogram of the total number of steps taken each day and calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first  part of the assignment? What is the impact of imputing missing data  on the estimates of the total daily number of steps?
+
+```
+
+```{r imputing missing values com}
+# calculate nb rows with NA values
+act_na <- is.na(act)
+sum(act_na)
+
+```
+
+```{r imputing missing values, echo=TRUE}
+# replace NA values i n column steps by the mean of steps done on
+# this interval
+tact <- act
+for (inx in 1:nrow(tact)) {
+  if (is.na(tact[inx,1])) {
+    tact[inx,1] <- pack_mean[which(pack_mean$interval == tact[inx,3]),]$mstep
+  }
+}
+
+# 4. Make a histogram of the total number of steps taken each day 
+pack_step <- tact %>%
+  group_by(date) %>%
+  summarize(tstep = sum(steps))
+
+hist(pack_step$tstep, col="green", breaks = nrow(pack_step), main = "Total steps by date", xlab="Number of steps")
+rug(pack_step$tstep)
+abline(v=median(pack_step$tstep), col="blue", lty=2, lwd=4)
+abline(v=mean(pack_step$tstep), col="red", lty=2, lwd=2)
+```
+
+```{r imputing missing values mean & median }
+# median number of steps taken each day
+median(pack_step$tstep)
+#Mean number of steps taken each day
+mean(pack_step$tstep)
+# AS SHOWN ON THE PLOT  MEAN & MEDIAN ARE EQUAL AND 
+# EQUAL TO THOSE CALCULATED ON DATA WITHOUT NA VALUES
+# BECAUSE WE IMPUTE MEAN VALUES INTERVAL FOREACH NA VALUE
+
+```
+
+
+
+# 4 - differences in activity patterns between weekdays and weekends
+
+```{r activity patterns com}
+# 1. Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+# 2. Make a panel plot containing a time series plot (i.e. type =  of the 5-minute interval (x-axis) and the average number of steps taken averaged across all weekday days or weekend days (y-axis). 
+```
+
+
+```{r plotting activity patterns, echo=TRUE}
+# function to calculate weekday attribute weekday or weekend
+weekf <- function(x) {
+  if (weekdays(as.Date(x)) =="samedi" | weekdays(as.Date(x))=="dimanche")
+    return("weekend")
+  else
+    return("weekday")
+}  
+tact$wday <- apply(tact["date"],1,weekf)
+tact$wday <- factor(tact$wday, labels=c("weekday", "weekend"))
+
+pack_mean <- tact %>%
+  group_by(wday, interval) %>%
+  summarize(mstep = mean(steps))
+
+par(mfcol=c(1,2))
+p1 = ggplot(pack_mean, aes(x=interval, y=mstep)) +
+  facet_grid(.~as.factor(wday)) + geom_line() +
+  scale_y_continuous(
+    name = "Mean number of steps by interval")
+p1 + ggtitle("Mean steps by interval") + xlab("Interval number") 
+
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
